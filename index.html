@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shorohov — запчасти для эндуро</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500&display=swap">
+<style>
+:root{--bg:#e9eae6;--card:#f6f6f3;--ink:#17231d;--mute:#5c675f;--green:#1f3a2e;--plate:#f2c200;--line:#cfd2cb}
+@media (prefers-color-scheme:dark){:root{--bg:#121a15;--card:#1b261f;--ink:#eef0ea;--mute:#9aa59c;--green:#2f5a45;--line:#2c3a31}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 Barlow,system-ui,sans-serif;padding-bottom:90px}
+header{padding:18px 16px 8px;display:flex;align-items:center;gap:12px}
+.plate{background:var(--plate);color:#17231d;font:700 26px/1 "Barlow Condensed",sans-serif;padding:8px 14px;border-radius:10px;border:3px solid #17231d;letter-spacing:.5px}
+header p{margin:0;color:var(--mute);font-size:14px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 16px}
+.chips button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:20px;font:inherit}
+.chips button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 16px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.item h3{margin:0;font:600 19px/1.15 "Barlow Condensed",sans-serif}
+.item small{color:var(--mute);flex:1}
+.price{font-weight:500}
+.add{border:0;background:var(--green);color:#fff;border-radius:10px;padding:10px;font:inherit;margin-top:4px}
+.add:focus-visible,.chips button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--plate);outline-offset:2px}
+#bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}
+#bar button{width:100%;border:0;border-radius:12px;padding:14px;background:var(--plate);color:#17231d;font:700 18px "Barlow Condensed",sans-serif}
+#bar button:disabled{opacity:.45}
+#sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:16px 16px 40px;display:none}
+#sheet.open{display:block}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.qty button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:18px}
+input,textarea{width:100%;margin:6px 0;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
+.total{font:700 24px "Barlow Condensed",sans-serif;margin:14px 0}
+.link{background:none;border:0;color:var(--mute);padding:8px 0;font:inherit}
+#err{color:#c0392b;min-height:20px}
+</style>
+</head>
+<body>
+<header><div class="plate">SHOROHOV</div><p>Запчасти и защита для эндуро</p></header>
+<div class="chips" id="chips"></div>
+<div class="grid" id="grid"></div>
+<div id="bar"><button id="open" disabled>Корзина пуста</button></div>
+<section id="sheet" aria-label="Корзина">
+  <button class="link" id="back">‹ Назад в каталог</button>
+  <h2 style="font:700 28px 'Barlow Condensed'">Ваш заказ</h2>
+  <div id="lines"></div>
+  <div class="total" id="total"></div>
+  <input id="name" placeholder="Имя" autocomplete="name">
+  <input id="phone" placeholder="Телефон" inputmode="tel" autocomplete="tel">
+  <input id="city" placeholder="Город и способ доставки">
+  <textarea id="note" rows="2" placeholder="Комментарий: модель и год мотоцикла"></textarea>
+  <div id="err" role="alert"></div>
+  <button class="add" id="send" style="width:100%;padding:14px;font-size:17px">Отправить заявку</button>
+</section>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;if(tg){tg.ready();tg.expand()}
+const $=id=>document.getElementById(id),rub=n=>n.toLocaleString("ru-RU")+" ₽";
+let products=[],cat="Все",cart={};
+fetch("products.json").then(r=>r.json()).then(d=>{products=d;draw()});
+function draw(){
+  const cats=["Все",...new Set(products.map(p=>p.cat))];
+  $("chips").innerHTML=cats.map(c=>`<button class="${c===cat?"on":""}" data-c="${c}">${c}</button>`).join("");
+  $("grid").innerHTML=products.filter(p=>cat==="Все"||p.cat===cat).map(p=>
+    `<div class="item"><h3>${p.name}</h3><small>${p.fits}</small><div class="price">${rub(p.price)}</div><button class="add" data-id="${p.id}">В корзину</button></div>`).join("");
+  bar()
+}
+function sum(){return Object.entries(cart).reduce((s,[id,q])=>s+q*products.find(p=>p.id==id).price,0)}
+function count(){return Object.values(cart).reduce((a,b)=>a+b,0)}
+function bar(){const n=count(),b=$("open");b.disabled=!n;b.textContent=n?`Корзина: ${n} шт. · ${rub(sum())}`:"Корзина пуста"}
+function lines(){
+  $("lines").innerHTML=Object.entries(cart).map(([id,q])=>{const p=products.find(x=>x.id==id);
+    return `<div class="row"><div>${p.name}<br><small style="color:var(--mute)">${rub(p.price)}</small></div><div class="qty"><button data-m="${id}" aria-label="Убрать">−</button> ${q} <button data-p="${id}" aria-label="Добавить">+</button></div></div>`}).join("");
+  $("total").textContent="Итого: "+rub(sum());bar();
+  if(!count())$("sheet").classList.remove("open")
+}
+document.addEventListener("click",e=>{
+  const t=e.target;
+  if(t.dataset.c){cat=t.dataset.c;draw()}
+  if(t.dataset.id){cart[t.dataset.id]=(cart[t.dataset.id]||0)+1;bar();tg&&tg.HapticFeedback&&tg.HapticFeedback.impactOccurred("light")}
+  if(t.dataset.p){cart[t.dataset.p]++;lines()}
+  if(t.dataset.m){if(--cart[t.dataset.m]<1)delete cart[t.dataset.m];lines()}
+});
+$("open").onclick=()=>{lines();$("sheet").classList.add("open")};
+$("back").onclick=()=>$("sheet").classList.remove("open");
+$("send").onclick=()=>{
+  const name=$("name").value.trim(),phone=$("phone").value.trim();
+  if(!name||phone.replace(/\D/g,"").length<10){$("err").textContent="Укажите имя и телефон, чтобы мы могли связаться.";return}
+  const order={name,phone,city:$("city").value.trim(),note:$("note").value.trim(),total:sum(),
+    items:Object.entries(cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return{name:p.name,qty:q,price:p.price}})};
+  if(tg&&tg.sendData)tg.sendData(JSON.stringify(order));else $("err").textContent="Откройте магазин через Telegram, чтобы отправить заявку."
+};
+</script>
+</body>
+</html>
